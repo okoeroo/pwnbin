@@ -33,7 +33,7 @@ def main(argv):
     root_url                                = 'http://pastebin.com'
     raw_url                                 = 'http://pastebin.com/raw.php?i='
     start_time                              = datetime.datetime.now()
-    file_name, keywords, append, run_time   = initialize_options(argv)
+    file_name, keywords, append, run_time = initialize_options(argv)
 
     print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
 
@@ -128,7 +128,7 @@ def find_keywords(paste, keywords):
     page = fetch_page(paste['url'])
 
     for keyword in keywords:
-        if keyword.upper() in page.upper():
+        if keyword in page:
             found_keywords.append(keyword)
 
     paste['found_keywords'] = found_keywords
@@ -145,11 +145,12 @@ def help():
 def initialize_options(argv):
     keywords = ['ssh', 'pass', 'key', 'token']
     file_name = 'log.txt'
+    keyword_file_name = 'keywords.txt'
     append = False
     run_time = 0
 
     try:
-        opts, args = getopt.getopt(argv,"h:k:o:at:")
+        opts, args = getopt.getopt(argv,"h:k:o:at:i:")
     except getopt.GetoptError:
         help()
         sys.exit(2)
@@ -163,6 +164,8 @@ def initialize_options(argv):
             append = True
         elif opt == "-k":
             keywords = set(arg.split(","))
+        elif opt == "-i":
+            keyword_file_name = arg
         elif opt == "-o":
             file_name = arg
         elif opt == "-t":
@@ -171,6 +174,12 @@ def initialize_options(argv):
             except ValueError:
                 print "Time must be an integer representation of seconds"
                 sys.exit()
+
+    f = open(keyword_file_name, 'r')
+    d = f.read()
+    f.close()
+    keywords = set(d.split("\n"))
+    keywords.remove('')
 
     return file_name, keywords, append, run_time
 
