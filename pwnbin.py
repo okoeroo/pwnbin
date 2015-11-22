@@ -2,151 +2,177 @@ import time
 import urllib2
 import datetime
 import sys, getopt
+from collections import defaultdict
 from bs4 import BeautifulSoup
+
+def has_paste(key, paste_list):
+    for paste in paste_list:
+        if key == paste['key']:
+            return True
+    return False
+
+def clean_paste_list(paste_list):
+    clean_list = []
+
+    for paste in paste_list:
+        found = False
+        for p2 in clean_list:
+            if p2['key'] == paste['key']:
+                found = True
+                break
+        if not found:
+            clean_list.append(paste)
+
+    return clean_list
+
 
 def main(argv):
 
-	length 									= 0
-	time_out 								= False
-	found_keywords							= []
-	paste_list 								= set([])
-	root_url 								= 'http://pastebin.com'
-	raw_url 								= 'http://pastebin.com/raw.php?i='
-	start_time								= datetime.datetime.now()
-	file_name, keywords, append, run_time 	= initialize_options(argv)
-	
-	print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
+    time_out                                = False
+    paste_list                              = []
+    root_url                                = 'http://pastebin.com'
+    raw_url                                 = 'http://pastebin.com/raw.php?i='
+    start_time                              = datetime.datetime.now()
+    file_name, keywords, append, run_time   = initialize_options(argv)
 
-	try:
-		# Continually loop until user stops execution
-		while True:
+    print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
 
-			#	Get pastebin home page html
-			root_html = BeautifulSoup(fetch_page(root_url), 'html.parser')
-			
-			#	For each paste in the public pastes section of home page
-			for paste in find_new_pastes(root_html):
-				
-				#	look at length of paste_list prior to new element
-				length = len(paste_list)
-				paste_list.add(paste)
+    try:
+        # Continually loop until user stops execution
+        while True:
+            # Get pastebin home page html
+            root_html = BeautifulSoup(fetch_page(root_url), 'html.parser')
 
-				#	If the length has increased the paste is unique since a set has no duplicate entries
-				if len(paste_list) > length:
-					
-					#	Add the pastes url to found_keywords if it contains keywords
-					raw_paste = raw_url+paste
-					found_keywords = find_keywords(raw_paste, found_keywords, keywords)
-				else:
+            # For each paste in the public pastes section of home page
+            for paste_key in find_new_pastes(root_html):
+                # Skip if already listed
+                if has_paste(paste_key, paste_list):
+                    continue
 
-					#	If keywords are not found enter time_out
-					time_out = True
+                paste = {}
+                paste['key'] = paste_key
+                paste['url'] = raw_url+paste_key
+                paste['processed'] = False
+                paste_list.append(paste)
 
-			# Enter the timeout if no new pastes have been found
-			if time_out:
-				time.sleep(2)
+            for paste in paste_list:
+                # Skip if already processed
+                if paste['processed']:
+                    continue
 
-			sys.stdout.write("\rCrawled total of %d Pastes, Keyword matches %d" % (len(paste_list), len(found_keywords)))
-			sys.stdout.flush()
+                # For every paste, check for keywords
+                find_keywords(paste, keywords)
+                paste['processed'] = True
 
-			if run_time and (start_time + datetime.timedelta(seconds=run_time)) < datetime.datetime.now():
-				write_out(found_keywords, append, file_name)
-				sys.exit()
+                # Report
+                report(paste, file_name)
 
-	# 	On keyboard interupt
-	except KeyboardInterrupt:
-		write_out(found_keywords, append, file_name)
+            time.sleep(2)
+            print "wait..."
 
-	#	If http request returns an error and 
-	except urllib2.HTTPError, err:
-		if err.code == 404:
-			print "\n\nError 404: Pastes not found!"
-		elif err.code == 403:
-			print "\n\nError 403: Pastebin is mad at you!"
-		else:
-			print "\n\nYou\'re on your own on this one! Error code ", err.code
-		write_out(found_keywords, append, file_name)
+    #     On keyboard interupt
+    except KeyboardInterrupt:
+        print "Exiting..."
 
-	#	If http request returns an error and 
-	except urllib2.URLError, err:
-		print "\n\nYou\'re on your own on this one! Error code ", err
-		write_out(found_keywords, append, file_name)
+    #    If http request returns an error and
+    except urllib2.HTTPError, err:
+        if err.code == 404:
+            print "\n\nError 404: Pastes not found!"
+        elif err.code == 403:
+            print "\n\nError 403: Pastebin is mad at you!"
+        else:
+            print "\n\nYou\'re on your own on this one! Error code ", err.code
+
+    #    If http request returns an error and
+    except urllib2.URLError, err:
+        print "\n\nYou\'re on your own on this one! Error code ", err
+
+def report(paste, file_name):
+    sys.stdout.write("Pastebin %s has %d hit(s)" %
+            (paste['url'], len(paste['found_keywords'])))
+    if len(paste['found_keywords']) > 0:
+        for fk in paste['found_keywords']:
+            sys.stdout.write(", %s" % fk)
+    sys.stdout.write(".\n")
+    sys.stdout.flush()
 
 
-def write_out(found_keywords, append, file_name):
-	# 	if pastes with keywords have been found
-	if len(found_keywords):
+    if len(paste['found_keywords']) == 0:
+        return
 
-		#	Write or Append out urls of keyword pastes to file specified
-		if append:
-			f = open(file_name, 'a')
-		else:
-			f = open(file_name, 'w')
+    f = open(file_name, 'a')
+    f.write("Pastebin %s has %d hit(s)" %
+            (paste['url'], len(paste['found_keywords'])))
+    if len(paste['found_keywords']) > 0:
+        for fk in paste['found_keywords']:
+            f.write(", %s" % fk)
+    f.write(".\n")
+    f.flush()
+    f.close()
 
-		for paste in found_keywords:
-			f.write(paste)
-		print "\n"
-	else:
-		print "\n\nNo relevant pastes found, exiting\n\n"
 
 def find_new_pastes(root_html):
-	new_pastes = []
+    new_pastes = []
 
-	div = root_html.find('div', {'id': 'menu_2'})
-	ul = div.find('ul', {'class': 'right_menu'})
-	
-	for li in ul.findChildren():
-		if li.find('a'):
-			new_pastes.append(str(li.find('a').get('href')).replace("/", ""))
+    div = root_html.find('div', {'id': 'menu_2'})
+    ul = div.find('ul', {'class': 'right_menu'})
 
-	return new_pastes
+    for li in ul.findChildren():
+        if li.find('a'):
+            new_pastes.append(str(li.find('a').get('href')).replace("/", ""))
 
-def find_keywords(raw_url, found_keywords, keywords):
-	paste = fetch_page(raw_url)
+    return new_pastes
 
-	#	Todo: Add in functionality to rank hit based on how many of the keywords it contains
-	for keyword in keywords:
-		if paste.find(keyword) != -1:
-			found_keywords.append("found " + keyword + " in " + raw_url + "\n")
-			break
+def find_keywords(paste, keywords):
+    found_keywords = []
+    page = fetch_page(paste['url'])
 
-	return found_keywords
+    for keyword in keywords:
+        if keyword.upper() in page.upper():
+            found_keywords.append(keyword)
+
+    paste['found_keywords'] = found_keywords
+    return paste
 
 def fetch_page(page):
-	response = urllib2.urlopen(page)
-	return response.read()
+    response = urllib2.urlopen(page)
+    return response.read()
+
+def help():
+    print 'pwnbin.py -k <keyword1>,<keyword2>,<keyword3>..... -o <outputfile>'
+
 
 def initialize_options(argv):
-	keywords = ['ssh', 'pass', 'key', 'token']
-	file_name = 'log.txt'
-	append = False
-	run_time = 0
+    keywords = ['ssh', 'pass', 'key', 'token']
+    file_name = 'log.txt'
+    append = False
+    run_time = 0
 
-	try:
-		opts, args = getopt.getopt(argv,"h:k:o:at:")
-	except getopt.GetoptError:
-		print 'pwnbin.py -k <keyword1>,<keyword2>,<keyword3>..... -o <outputfile>'
-		sys.exit(2)
+    try:
+        opts, args = getopt.getopt(argv,"h:k:o:at:")
+    except getopt.GetoptError:
+        help()
+        sys.exit(2)
 
-	for opt, arg in opts:
+    for opt, arg in opts:
 
-		if opt == '-h':
-			print 'pwnbin.py -k <keyword1>,<keyword2>,<keyword3>..... -o <outputfile>'
-			sys.exit()
-		elif opt == '-a':
-			append = True
-		elif opt == "-k":
-			keywords = set(arg.split(","))
-		elif opt == "-o":
-			file_name = arg
-		elif opt == "-t":
-			try:
-				run_time = int(arg)
-			except ValueError:
-				print "Time must be an integer representation of seconds"
-				sys.exit()
+        if opt == '-h':
+            help()
+            sys.exit()
+        elif opt == '-a':
+            append = True
+        elif opt == "-k":
+            keywords = set(arg.split(","))
+        elif opt == "-o":
+            file_name = arg
+        elif opt == "-t":
+            try:
+                run_time = int(arg)
+            except ValueError:
+                print "Time must be an integer representation of seconds"
+                sys.exit()
 
-	return file_name, keywords, append, run_time
+    return file_name, keywords, append, run_time
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])
