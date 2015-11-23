@@ -36,60 +36,61 @@ def main(argv):
 
     print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
 
-    # Continually loop until user stops execution
-    while True:
-        try:
-            # Get pastebin home page html
-            root_html = BeautifulSoup(fetch_page(root_url), 'html.parser')
+    try:
+        # Continually loop until user stops execution
+        while True:
+            try:
+                # Get pastebin home page html
+                root_html = BeautifulSoup(fetch_page(root_url), 'html.parser')
 
-            # For each paste in the public pastes section of home page
-            for paste_key in find_new_pastes(root_html):
-                # Skip if already listed
-                if has_paste(paste_key, paste_list):
-                    continue
+                # For each paste in the public pastes section of home page
+                for paste_key in find_new_pastes(root_html):
+                    # Skip if already listed
+                    if has_paste(paste_key, paste_list):
+                        continue
 
-                paste = {}
-                paste['key'] = paste_key
-                paste['url'] = raw_url+paste_key
-                paste['processed'] = False
-                paste['time_discovered'] = datetime.datetime.utcnow().isoformat()
-                paste_list.append(paste)
+                    paste = {}
+                    paste['key'] = paste_key
+                    paste['url'] = raw_url+paste_key
+                    paste['processed'] = False
+                    paste['time_discovered'] = datetime.datetime.utcnow().isoformat()
+                    paste_list.append(paste)
 
-            for paste in paste_list:
-                # Dont go too fast
-                time.sleep(2)
+                for paste in paste_list:
+                    # Dont go too fast
+                    time.sleep(2)
 
-                # Skip if already processed
-                if paste['processed']:
-                    continue
+                    # Skip if already processed
+                    if paste['processed']:
+                        continue
 
-                # For every paste, check for keywords
-                find_keywords(paste, keywords)
-                paste['processed'] = True
-                paste['time_processed'] = datetime.datetime.utcnow().isoformat()
+                    # For every paste, check for keywords
+                    find_keywords(paste, keywords)
+                    paste['processed'] = True
+                    paste['time_processed'] = datetime.datetime.utcnow().isoformat()
 
-                # Report
-                report(paste, file_name)
+                    # Report
+                    report(paste, file_name)
 
-            time.sleep(10)
-            print "wait..."
+                time.sleep(10)
+                print "wait..."
 
-        # On keyboard interupt
-        except KeyboardInterrupt:
-            print "Exiting..."
+            # If http request returns an error and
+            except urllib2.HTTPError, err:
+                if err.code == 404:
+                    print "\n\nError 404: Pastes not found!"
+                elif err.code == 403:
+                    print "\n\nError 403: Pastebin is mad at you!"
+                else:
+                    print "\n\nYou\'re on your own on this one! Error code ", err.code
 
-        # If http request returns an error and
-        except urllib2.HTTPError, err:
-            if err.code == 404:
-                print "\n\nError 404: Pastes not found!"
-            elif err.code == 403:
-                print "\n\nError 403: Pastebin is mad at you!"
-            else:
-                print "\n\nYou\'re on your own on this one! Error code ", err.code
+            # If http request returns an error and
+            except urllib2.URLError, err:
+                print "\n\nYou\'re on your own on this one! Error code ", err
 
-        # If http request returns an error and
-        except urllib2.URLError, err:
-            print "\n\nYou\'re on your own on this one! Error code ", err
+    # On keyboard interupt
+    except KeyboardInterrupt:
+        print "Exiting..."
 
 def report(paste, file_name):
     sys.stdout.write("Pastebin %s has %d hit(s)" %
