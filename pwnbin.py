@@ -36,9 +36,9 @@ def main(argv):
 
     print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
 
-    try:
-        # Continually loop until user stops execution
-        while True:
+    # Continually loop until user stops execution
+    while True:
+        try:
             # Get pastebin home page html
             root_html = BeautifulSoup(fetch_page(root_url), 'html.parser')
 
@@ -71,22 +71,22 @@ def main(argv):
             time.sleep(2)
             print "wait..."
 
-    #     On keyboard interupt
-    except KeyboardInterrupt:
-        print "Exiting..."
+        # On keyboard interupt
+        except KeyboardInterrupt:
+            print "Exiting..."
 
-    #    If http request returns an error and
-    except urllib2.HTTPError, err:
-        if err.code == 404:
-            print "\n\nError 404: Pastes not found!"
-        elif err.code == 403:
-            print "\n\nError 403: Pastebin is mad at you!"
-        else:
-            print "\n\nYou\'re on your own on this one! Error code ", err.code
+        # If http request returns an error and
+        except urllib2.HTTPError, err:
+            if err.code == 404:
+                print "\n\nError 404: Pastes not found!"
+            elif err.code == 403:
+                print "\n\nError 403: Pastebin is mad at you!"
+            else:
+                print "\n\nYou\'re on your own on this one! Error code ", err.code
 
-    #    If http request returns an error and
-    except urllib2.URLError, err:
-        print "\n\nYou\'re on your own on this one! Error code ", err
+        # If http request returns an error and
+        except urllib2.URLError, err:
+            print "\n\nYou\'re on your own on this one! Error code ", err
 
 def report(paste, file_name):
     sys.stdout.write("Pastebin %s has %d hit(s)" %
