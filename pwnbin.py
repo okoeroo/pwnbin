@@ -4,6 +4,7 @@ import datetime
 import sys, getopt
 from collections import defaultdict
 from bs4 import BeautifulSoup
+import re
 
 def has_paste(key, paste_list):
     for paste in paste_list:
@@ -28,11 +29,9 @@ def clean_paste_list(paste_list):
 
 def main(argv):
 
-    time_out                                = False
     paste_list                              = []
     root_url                                = 'http://pastebin.com'
     raw_url                                 = 'http://pastebin.com/raw.php?i='
-    start_time                              = datetime.datetime.now()
     file_name, keywords, append, run_time = initialize_options(argv)
 
     print "\nCrawling %s Press ctrl+c to save file to %s" % (root_url, file_name)
@@ -53,6 +52,7 @@ def main(argv):
                 paste['key'] = paste_key
                 paste['url'] = raw_url+paste_key
                 paste['processed'] = False
+                paste['time_discovered'] = datetime.datetime.utcnow().isoformat()
                 paste_list.append(paste)
 
             for paste in paste_list:
@@ -63,6 +63,7 @@ def main(argv):
                 # For every paste, check for keywords
                 find_keywords(paste, keywords)
                 paste['processed'] = True
+                paste['time_processed'] = datetime.datetime.utcnow().isoformat()
 
                 # Report
                 report(paste, file_name)
@@ -92,7 +93,7 @@ def report(paste, file_name):
             (paste['url'], len(paste['found_keywords'])))
     if len(paste['found_keywords']) > 0:
         for fk in paste['found_keywords']:
-            sys.stdout.write(", %s" % fk)
+            sys.stdout.write(", %s" % fk['keyword'])
     sys.stdout.write(".\n")
     sys.stdout.flush()
 
@@ -105,7 +106,7 @@ def report(paste, file_name):
             (paste['url'], len(paste['found_keywords'])))
     if len(paste['found_keywords']) > 0:
         for fk in paste['found_keywords']:
-            f.write(", %s" % fk)
+            f.write(", %s" % fk['keyword'])
     f.write(".\n")
     f.flush()
     f.close()
@@ -128,8 +129,15 @@ def find_keywords(paste, keywords):
     page = fetch_page(paste['url'])
 
     for keyword in keywords:
-        if keyword in page:
-            found_keywords.append(keyword)
+        match = re.search(keyword, page, re.MULTILINE)
+        if match:
+            print "has match" + ' ' + keyword + ' ' + match.group(0)
+#            print match.groupdict()
+
+            mtch = {}
+            mtch['keyword'] = keyword
+            mtch['match'] = match.group(0)
+            found_keywords.append(mtch)
 
     paste['found_keywords'] = found_keywords
     return paste
