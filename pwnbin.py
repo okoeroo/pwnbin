@@ -56,6 +56,9 @@ def main(argv):
                 paste_list.append(paste)
 
             for paste in paste_list:
+                # Dont go too fast
+                time.sleep(2)
+
                 # Skip if already processed
                 if paste['processed']:
                     continue
@@ -68,7 +71,7 @@ def main(argv):
                 # Report
                 report(paste, file_name)
 
-            time.sleep(2)
+            time.sleep(10)
             print "wait..."
 
         # On keyboard interupt
